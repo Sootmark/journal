@@ -23,7 +23,7 @@ for problem in &journal.problems {
 - Each entry: sequence number, wall-clock time (microseconds as written, and as a UTC time), monotonic time and boot id, xor hash, its file offset, and its `NAME=value` fields in stored order. Values are bytes (binary fields stay binary), with lossy text on demand; fields shared by many entries are read once.
 - Accessors for the common fields: `message`, `priority`, `syslog_identifier`, `pid`, `uid`, `comm`, `exe`, `cmdline`, `hostname`, `systemd_unit`, `transport`, `source_time` (`_SOURCE_REALTIME_TIMESTAMP`).
 - Regular and compact files (32-bit offsets); keyed and unkeyed hashes (entries are read without the hash tables).
-- LZ4 payloads decompressed (the block decoder is written here). XZ and Zstandard payloads are kept as `Value::Compressed` with their size, still named from the FIELD objects, and counted in `problems`; a Zstandard decoder has one place to go, in `src/compress.rs`.
+- LZ4 payloads decompressed (the block decoder is written here) and Zstandard ones (`sootmark-common`'s decoder; systemd's default since v246), up to 64 MiB a field. XZ payloads are kept as `Value::Compressed` with their size, still named from the FIELD objects, and counted in `problems`.
 
 ## Damage is contained
 
@@ -33,14 +33,14 @@ Evidence is hostile. Only a file that isn't a journal or whose header is cut off
 
 | Check | Result |
 |---|---|
-| Journals made for this crate (below) against `journalctl -o export --all`: every entry's sequence number, times, boot id and fields, name and value | regular, compact, LZ4 (both), unkeyed, online: all 24 entries match; ZSTD and XZ: all match, the compressed fields by name |
+| Journals made for this crate (below) against `journalctl -o export --all`: every entry's sequence number, times, boot id and fields, name and value | regular, compact, LZ4 (both), unkeyed, online: all 24 entries match; ZSTD: all match; XZ: all match, the compressed fields by name |
 | A truncated copy, and a copy with its chain's first array and 40 arena bytes overwritten (journalctl reads neither) | 14 of 24 entries, exact; all 24 recovered by the scan, one missing the fields its overwritten items pointed at |
 | systemd's own test journals (LGPL-2.1, `test/test-journals/`): seven real ones against journalctl, and 623 damaged ones, most by a fuzzer | 10,757 entries match; all 630 read without a panic |
 | Property tests: arbitrary bytes, arbitrary objects behind a real header, real files damaged and cut anywhere | no panic (256 cases each per run) |
 
 The journals in `tests/fixtures/generated/` were made for this crate: synthetic entries written in the journal export format (two boots of `lab-host`: sshd logins, failed passwords, a sudo command, a long message, a binary field) and turned into journal files by `systemd-journal-remote` 257, under each of its compact and compression settings. `tests/fixtures/generate.sh` recreates them and the oracle in `tests/oracle/`. They are gzipped: a journal is allocated in large steps, mostly zeros. systemd's test journals are not vendored; CI downloads them at a pinned commit and runs `tests/systemd_samples.rs` on them.
 
-Not yet: XZ and Zstandard payloads, verifying seal tags, and following the hash tables.
+Not yet: XZ payloads, verifying seal tags, and following the hash tables.
 
 ## Licence
 

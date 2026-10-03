@@ -15,7 +15,7 @@ include = ["/src", "/README.md", "/LICENSE-APACHE", "/LICENSE-MIT"]
 name = "journal"
 
 [dependencies]
-common = { package = "sootmark-common", version = "0.3.5" }
+common = { package = "sootmark-common", version = "0.3.6" }
 
 [dev-dependencies]
 proptest = "1"

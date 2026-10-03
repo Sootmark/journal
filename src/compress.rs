@@ -5,6 +5,10 @@ use core::fmt;
 use crate::bytes::u64_at;
 use crate::lz4;
 
+/// Largest field value decompressed: well above anything journald logs
+/// but a core dump, and a bound on what hostile data can make us allocate.
+const MAX_FIELD_SIZE: usize = 64 << 20;
+
 /// DATA object flags naming the compression.
 const XZ: u8 = 1 << 0;
 const LZ4: u8 = 1 << 1;
@@ -60,8 +64,8 @@ pub(crate) fn decompress(compression: Compression, payload: &[u8]) -> Result<Vec
             let size = usize::try_from(size).map_err(|_| Failure::Damaged("impossible size"))?;
             lz4::decompress(&payload[8..], size).map_err(Failure::Damaged)
         }
-        // A Zstandard decoder goes here: sootmark-common's, once it has one.
-        // Everything else already handles the decoded payload.
-        Compression::Zstd | Compression::Xz => Err(Failure::Unsupported),
+        Compression::Zstd => common::zstd::decompress(payload, MAX_FIELD_SIZE)
+            .map_err(|_| Failure::Damaged("not a valid Zstandard frame, or over 64 MiB")),
+        Compression::Xz => Err(Failure::Unsupported),
     }
 }

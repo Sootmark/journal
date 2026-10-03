@@ -85,18 +85,28 @@ fn lz4_decoded() {
 }
 
 #[test]
-fn zstd_and_xz_kept_compressed_and_named() {
-    for (name, compression) in [("zstd", Compression::Zstd), ("xz", Compression::Xz)] {
-        let journal = matches_oracle(&format!("{name}.journal"), name);
-        let count = compressed(&journal, compression);
-        assert!(count > 0, "{name}");
-        assert_eq!(
-            journal.problems,
-            [format!(
-                "{compression}-compressed fields left undecoded (no {compression} decoder): {count}"
-            )]
-        );
-    }
+fn zstd_decoded() {
+    let journal = matches_oracle("zstd.journal", "zstd");
+    assert!(journal.problems.is_empty(), "{:?}", journal.problems);
+    assert_eq!(compressed(&journal, Compression::Zstd), 0);
+    assert!(journal
+        .entries
+        .iter()
+        .filter_map(journal::Entry::message)
+        .any(|m| m.len() > 512 && m.starts_with("line 000: backup")));
+}
+
+#[test]
+fn xz_kept_compressed_and_named() {
+    let journal = matches_oracle("xz.journal", "xz");
+    let count = compressed(&journal, Compression::Xz);
+    assert!(count > 0);
+    assert_eq!(
+        journal.problems,
+        [format!(
+            "XZ-compressed fields left undecoded (no XZ decoder): {count}"
+        )]
+    );
 }
 
 #[test]
