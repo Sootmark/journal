@@ -1,0 +1,4 @@
+/target
+.DS_Store
+# systemd's test journals (LGPL-2.1), downloaded by CI, never committed.
+/tests/fixtures/systemd/

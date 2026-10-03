@@ -1,0 +1,54 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: -D warnings
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.94.1
+        with:
+          components: rustfmt, clippy
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+      - name: Format
+        run: cargo fmt --check
+      - name: Lint
+        run: cargo clippy --all-targets --locked
+      - name: Test
+        run: cargo test --locked
+      - name: Test on systemd's test journals
+        # LGPL-2.1, so downloaded rather than vendored. journalctl's export
+        # of each is the oracle.
+        run: |
+          dir="$RUNNER_TEMP/journals"
+          mkdir -p "$dir"
+          curl -sSfL https://codeload.github.com/systemd/systemd/tar.gz/35eb598af26f66c94d7403f6170d5cae438871fb \
+            | tar -xz -C "$dir" --strip-components=3 --wildcards '*/test/test-journals/*'
+          find "$dir" -name '*.tar.zst' -execdir tar --zstd -xf {} \; -delete
+          find "$dir" -name '*.zst' -exec zstd -q -d --rm {} \;
+          find "$dir" -type f -exec sh -c 'journalctl --file "$1" -o export --all >"$1.export" 2>/dev/null || true' sh {} \;
+          SOOTMARK_JOURNAL_SYSTEMD="$dir" cargo test --locked --release --test systemd_samples
+      - name: Docs
+        run: cargo doc --no-deps --locked
+        env:
+          RUSTDOCFLAGS: -D warnings
+      - name: Build for wasm32
+        run: cargo build --locked --target wasm32-unknown-unknown
+
+  supply-chain:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: EmbarkStudios/cargo-deny-action@v2
